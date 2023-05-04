@@ -1,12 +1,51 @@
-// simple object literals
-var obj = { foo: "bar" };
+import { defer } from 'lodash';
+import { Alert } from 'react-native';
+import { notificationSettingsService } from '@alexa-mobile/elements/device';
+import { permissionService } from '@alexa-mobile/elements/permission';
+import { Platform } from 'react-native';
+import {getLocalizedString} from "../helpers";
 
-// nested object literals
-var obj = { foo: { zoo: "bar" } };
+export class NativeMobilePushService {
+    public async checkForSystemPermissions() {
+        const areNotificationsEnabledForThisApp = (await notificationSettingsService.notificationSettings).areNotificationsEnabled;
+        if (!areNotificationsEnabledForThisApp) {
+            this.handlePushNotificationPermissionRequest()
+        } else {
+            return areNotificationsEnabledForThisApp
+        }
+    }
 
-// destructuring assignment (EcmaScript 6)
-var { x, y } = y;
+    public handlePushNotificationPermissionRequest() {
+        if (Platform.OS === 'ios') {
+            notificationSettingsService.hasSeenNotificationRequestOniOS().then((result) => {
+                if (!result) {
+                    permissionService.requestNotificationPermission();
+                    return;
+                }
+                this.showNotificationsDisabledAlert();
+            });
+            return;
+        }
+        this.showNotificationsDisabledAlert();
+    }
 
-// import/export declarations (EcmaScript 6)
-import { foo } from "bar";
-export { foo };
+    private showNotificationsDisabledAlert() {
+        Alert.alert(
+            getLocalizedString('NOTIFICATIONS_DISABLED_ALERT_TITLE'),
+            getLocalizedString('NOTIFICATIONS_DISABLED_ALERT_DESCRIPTION'),
+            [
+                { text: getLocalizedString('CANCEL') },
+                {
+                    text: getLocalizedString('NOTIFICATIONS_DISABLED_ALERT_ACTION'),
+                    onPress: () => defer(() => {
+                        notificationSettingsService.navigateToGlobalNotificationSettings()
+                    }),
+                },
+            ],
+            { cancelable: false }
+        );
+    }
+
+}
+
+export const checkForSystemPermissions = NativeMobilePushService;
